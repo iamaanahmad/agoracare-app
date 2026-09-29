@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../providers/voice_provider.dart';
-import '../providers/auth_provider.dart';
 import '../services/firebase_service.dart';
 
 class NurseDashboardScreen extends ConsumerStatefulWidget {
@@ -22,8 +21,6 @@ class _NurseDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    final lang = ref.watch(languageProvider);
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -92,11 +89,13 @@ class _NurseDashboardScreenState
                 data: data,
                 onJoinCall: () async {
                   final notifier = ref.read(voiceProvider.notifier);
-                  // Nurse joins the same channel as patient
-                  await notifier.startSession(
-                    language: lang,
-                    userUid: 8888, // nurse UID
-                    patientContext: {'role': 'nurse'},
+                  // Nurse joins the patient's live channel from the ticket
+                  final channel =
+                      (data['channelName'] as String?) ?? '';
+                  if (channel.isEmpty) return;
+                  await notifier.joinExistingChannel(
+                    channelName: channel,
+                    uid: 8888, // nurse UID
                   );
                 },
                 onResolve: () => FirebaseService.resolveEscalation(doc.id),

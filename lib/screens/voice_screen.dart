@@ -105,7 +105,9 @@ class VoiceScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             child: _EmergencyButton(
               onTap: () {
-                notifier.triggerEmergency();
+                notifier.triggerEmergencyCall(
+                  userUid: user?.uid.hashCode.abs() ?? 12345,
+                );
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('🚨 Emergency alert sent — connecting to nurse...'),

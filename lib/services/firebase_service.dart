@@ -55,6 +55,26 @@ class FirebaseService {
         .update({'status': 'resolved', 'resolvedAt': FieldValue.serverTimestamp()});
   }
 
+  /// Raises a new emergency escalation ticket. Returns the ticket doc ID.
+  static Future<String> raiseEscalation({
+    required String patientName,
+    required int patientUid,
+    required String channelName,
+    required String reason,
+    String severity = 'CRITICAL',
+  }) async {
+    final doc = await _db.collection(AppConstants.colEscalations).add({
+      'patientName': patientName,
+      'patientUid': patientUid,
+      'channelName': channelName,
+      'reason': reason,
+      'severity': severity,
+      'status': 'active',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+    return doc.id;
+  }
+
   // ── Demo Data Seeding ──────────────────────────────────────────────────────
 
   static Future<void> seedDemoDataIfEmpty(String uid) async {

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/agora_service.dart';
 import '../services/backend_service.dart';
+import '../services/firebase_service.dart';
 
 enum VoiceOrbState { idle, connecting, listening, aiSpeaking, emergency }
 
@@ -156,11 +157,62 @@ class VoiceNotifier extends StateNotifier<VoiceSession> {
     );
   }
 
-  void triggerEmergency() {
+  /// Raises a real escalation ticket in Firestore so the nurse dashboard
+  /// receives it in real time. Uses the active voice channel when present.
+  Future<void> triggerEmergencyCall({
+    required int userUid,
+    String patientName = 'Patient',
+    String reason = 'Emergency button pressed',
+  }) async {
+    final channelName = state.channelName ??
+        'care_${userUid}_${DateTime.now().millisecondsSinceEpoch}';
     state = state.copyWith(
       orbState: VoiceOrbState.emergency,
       statusText: '🚨 Connecting to nurse...',
     );
+    try {
+      await FirebaseService.raiseEscalation(
+        patientName: patientName,
+        patientUid: userUid,
+        channelName: channelName,
+        reason: reason,
+      );
+      state = state.copyWith(
+        statusText: '🚨 Nurse alerted — stay on the line, help is coming.',
+      );
+    } catch (_) {
+      state = state.copyWith(
+        statusText: '🚨 Emergency mode — could not reach nurse. Tap to retry.',
+      );
+    }
+  }
+
+  /// Lets a nurse join the patient's live channel from an escalation ticket.
+  Future<void> joinExistingChannel({
+    required String channelName,
+    required int uid,
+  }) async {
+    state = state.copyWith(
+      orbState: VoiceOrbState.connecting,
+      statusText: 'Joining patient call...',
+      transcript: [],
+    );
+    try {
+      await _agora.dispose();
+      await _agora.init();
+      final token = await BackendService.getAgoraToken(channelName, uid);
+      await _agora.joinChannel(token, channelName, uid);
+      state = state.copyWith(
+        channelName: channelName,
+        orbState: VoiceOrbState.listening,
+        statusText: 'Connected — you can hear the patient now.',
+      );
+    } catch (_) {
+      state = state.copyWith(
+        orbState: VoiceOrbState.idle,
+        statusText: 'Could not join the call. Tap to retry.',
+      );
+    }
   }
 
   void _onAgentLeft() {
