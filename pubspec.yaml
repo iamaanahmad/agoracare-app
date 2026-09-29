@@ -1,0 +1,46 @@
+name: agoracare_flutter
+description: Voice AI Healthcare Companion — Agora Hackathon 2026
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Agora — Core requirement
+  agora_rtc_engine: ^6.3.2
+
+  # Firebase
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+
+  # HTTP
+  dio: ^5.7.0
+
+  # UI & Fonts
+  google_fonts: ^6.2.1
+  fl_chart: ^0.69.0
+
+  # Audio alerts
+  audioplayers: ^6.1.0
+
+  # Utils
+  shared_preferences: ^2.3.2
+  permission_handler: ^11.3.1
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sounds/
