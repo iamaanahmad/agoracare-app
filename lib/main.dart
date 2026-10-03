@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme.dart';
 import 'core/routes.dart';
 import 'firebase_options.dart';
+import 'services/backend_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
@@ -26,6 +27,13 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Pre-warm the voice backend: Vercel cold starts (~15s) can exceed the
+  // API connect timeout, which would flake the first voice tap of a demo.
+  BackendService.getAgoraToken('warmup', 0)
+      .timeout(const Duration(seconds: 25), onTimeout: () => '')
+      .then((_) {})
+      .catchError((_) {});
 
   runApp(const ProviderScope(child: AgoraCareApp()));
 }
