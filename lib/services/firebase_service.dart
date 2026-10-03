@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
 
 class FirebaseService {
@@ -42,17 +43,81 @@ class FirebaseService {
 
   // ── Escalations ────────────────────────────────────────────────────────────
 
+  /// Only unresolved escalations (active or accepted) appear on the dashboard.
+  /// Resolved ones drop off immediately.
   static Stream<QuerySnapshot> escalationsStream() => _db
       .collection(AppConstants.colEscalations)
-      .where('status', isEqualTo: 'active')
-      .orderBy('timestamp', descending: true)
+      .where('status', whereIn: ['active', 'accepted'])
       .snapshots();
 
+  /// Live status of a single escalation — patient listens to this to update
+  /// the "waiting → connected" UI.
+  static Stream<DocumentSnapshot> escalationDocStream(String ticketId) => _db
+      .collection(AppConstants.colEscalations)
+      .doc(ticketId)
+      .snapshots();
+
+  /// Nurse accepts an escalation → patient sees "connected".
+  static Future<void> acceptEscalation(String ticketId) async {
+    try {
+      await _db.collection(AppConstants.colEscalations).doc(ticketId).update({
+        'status': 'accepted',
+        'acceptedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
+  }
+
   static Future<void> resolveEscalation(String ticketId) async {
-    await _db
-        .collection(AppConstants.colEscalations)
-        .doc(ticketId)
-        .update({'status': 'resolved', 'resolvedAt': FieldValue.serverTimestamp()});
+    try {
+      await _db
+          .collection(AppConstants.colEscalations)
+          .doc(ticketId)
+          .update({'status': 'resolved', 'resolvedAt': FieldValue.serverTimestamp()});
+    } catch (_) {}
+  }
+
+  static Future<String> raiseEscalation({
+    required String patientName,
+    required int patientUid,
+    required String channelName,
+    required String reason,
+    String severity = 'CRITICAL',
+  }) async {
+    try {
+      final doc = await _db.collection(AppConstants.colEscalations).add({
+        'patientName': patientName,
+        'patientUid': patientUid,
+        'channelName': channelName,
+        'reason': reason,
+        'severity': severity,
+        'status': 'active',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // Also create a support_tickets doc so the WEB Live Agent Dashboard
+      // sees it and can join the patient's channel for real two-way audio.
+      try {
+        await _db.collection('support_tickets').add({
+          'patientId': patientUid.toString(),
+          'patientName': patientName,
+          'summary': reason,
+          'reason': reason,
+          'status': 'open',
+          'agoraChannel': channelName,
+          'escalationId': doc.id,
+          'source': 'mobile-emergency-button',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint('support_tickets write error: $e');
+      }
+
+      return doc.id;
+    } catch (e) {
+      debugPrint('Raise escalation error: $e');
+      return '';
+    }
   }
 
   // ── Demo Data Seeding ──────────────────────────────────────────────────────

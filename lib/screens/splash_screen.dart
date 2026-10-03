@@ -53,49 +53,50 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fade,
-          child: ScaleTransition(
-            scale: _scale,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primaryMid, AppColors.primary],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primaryMid, AppColors.primary],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: FadeTransition(
+            opacity: _fade,
+            child: ScaleTransition(
+              scale: _scale,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 108,
+                    height: 108,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.16),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          width: 1),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          blurRadius: 32,
-                          offset: const Offset(0, 8))
-                    ],
+                    child: const Icon(Icons.favorite_rounded,
+                        color: Colors.white, size: 52),
                   ),
-                  child: const Icon(Icons.favorite_rounded,
-                      color: Colors.white, size: 48),
-                ),
-                const SizedBox(height: 24),
-                const Text('AgoraCare',
-                    style: TextStyle(
-                        color: AppColors.text,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5)),
-                const SizedBox(height: 8),
-                const Text('Voice AI Healthcare',
-                    style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 15,
-                        letterSpacing: 0.3)),
-              ],
+                  const SizedBox(height: 24),
+                  const Text('AgoraCare',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5)),
+                  const SizedBox(height: 8),
+                  Text('Voice AI Healthcare',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 15,
+                          letterSpacing: 0.3)),
+                ],
+              ),
             ),
           ),
         ),

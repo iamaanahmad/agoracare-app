@@ -90,14 +90,33 @@ class _NurseDashboardScreenState
               return _EscalationCard(
                 ticketId: doc.id,
                 data: data,
-                onJoinCall: () async {
-                  final notifier = ref.read(voiceProvider.notifier);
-                  // Nurse joins the same channel as patient
-                  await notifier.startSession(
-                    language: lang,
-                    userUid: 8888, // nurse UID
-                    patientContext: {'role': 'nurse'},
-                  );
+                onAccept: () async {
+                  // Primary action: flip the patient's screen to "connected".
+                  // This must succeed regardless of the audio bridge.
+                  await FirebaseService.acceptEscalation(doc.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ Accepted — joining the patient\'s channel…'),
+                        backgroundColor: AppColors.success,
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                  // Secondary: join the PATIENT'S channel (not a new one) to
+                  // bridge audio. On a single device this no-ops because the
+                  // patient already owns the engine; on the nurse's own device
+                  // it joins the live channel. Never let failure undo accept.
+                  final patientChannel = data['channelName'] as String? ?? '';
+                  if (patientChannel.isNotEmpty) {
+                    try {
+                      await ref
+                          .read(voiceProvider.notifier)
+                          .joinAsNurse(patientChannel);
+                    } catch (e) {
+                      debugPrint('[Nurse] audio join failed (non-fatal): $e');
+                    }
+                  }
                 },
                 onResolve: () => FirebaseService.resolveEscalation(doc.id),
               );
@@ -118,13 +137,13 @@ class _NurseDashboardScreenState
 class _EscalationCard extends StatelessWidget {
   final String ticketId;
   final Map<String, dynamic> data;
-  final VoidCallback onJoinCall;
+  final Future<void> Function() onAccept;
   final VoidCallback onResolve;
 
   const _EscalationCard({
     required this.ticketId,
     required this.data,
-    required this.onJoinCall,
+    required this.onAccept,
     required this.onResolve,
   });
 
@@ -207,20 +226,37 @@ class _EscalationCard extends StatelessWidget {
                     style: const TextStyle(
                         color: AppColors.border, fontSize: 11)),
                 const SizedBox(height: 16),
+                if ((data['status'] as String? ?? 'active') == 'accepted')
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.successLight,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.phone_in_talk_rounded,
+                            color: AppColors.success, size: 16),
+                        SizedBox(width: 6),
+                        Text('Connected with patient',
+                            style: TextStyle(
+                                color: AppColors.success,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13)),
+                      ],
+                    ),
+                  ),
                 Row(
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: onJoinCall,
-                        icon: const Icon(Icons.call_rounded, size: 18),
-                        label: const Text('Join Call'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.success,
-                          minimumSize: const Size(0, 44),
-                        ),
+                    if ((data['status'] as String? ?? 'active') != 'accepted')
+                      Expanded(
+                        child: _AcceptButton(onAccept: onAccept),
                       ),
-                    ),
-                    const SizedBox(width: 12),
+                    if ((data['status'] as String? ?? 'active') != 'accepted')
+                      const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: onResolve,
@@ -248,5 +284,49 @@ class _EscalationCard extends StatelessWidget {
     if (diff.inMinutes < 1) return 'Just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     return '${diff.inHours}h ago';
+  }
+}
+
+// ── Accept Button (with in-flight spinner) ───────────────────────────────────
+
+class _AcceptButton extends StatefulWidget {
+  final Future<void> Function() onAccept;
+  const _AcceptButton({required this.onAccept});
+
+  @override
+  State<_AcceptButton> createState() => _AcceptButtonState();
+}
+
+class _AcceptButtonState extends State<_AcceptButton> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: _busy
+          ? null
+          : () async {
+              setState(() => _busy = true);
+              try {
+                await widget.onAccept();
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
+            },
+      icon: _busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
+            )
+          : const Icon(Icons.call_rounded, size: 18),
+      label: Text(_busy ? 'Accepting…' : 'Accept & Join'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.success,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(0, 44),
+      ),
+    );
   }
 }

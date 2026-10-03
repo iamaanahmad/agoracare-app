@@ -104,16 +104,19 @@ class VoiceScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             child: _EmergencyButton(
-              onTap: () {
-                notifier.triggerEmergency();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('🚨 Emergency alert sent — connecting to nurse...'),
-                    backgroundColor: AppColors.danger,
-                    duration: Duration(seconds: 4),
-                  ),
-                );
-              },
+              status: session.emergencyStatus,
+              onTap: session.emergencyStatus == EmergencyStatus.none
+                  ? () async {
+                      await notifier.triggerEmergency(
+                        patientName: user?.displayName ??
+                            'Patient (${user?.uid.substring(0, 5) ?? 'Rural'})',
+                        patientUid: user?.uid.hashCode.abs() ?? 12345,
+                      );
+                    }
+                  : () async {
+                      // While waiting or connected, the button ends the emergency.
+                      await notifier.endEmergency();
+                    },
             ),
           ),
         ],
@@ -392,11 +395,40 @@ class _Bubble extends StatelessWidget {
 // ── Emergency Button ───────────────────────────────────────────────────────────
 
 class _EmergencyButton extends StatelessWidget {
-  final VoidCallback onTap;
-  const _EmergencyButton({required this.onTap});
+  final VoidCallback? onTap;
+  final EmergencyStatus status;
+  const _EmergencyButton({required this.onTap, required this.status});
 
   @override
   Widget build(BuildContext context) {
+    late final IconData icon;
+    late final String label;
+    late final Color color;
+
+    switch (status) {
+      case EmergencyStatus.none:
+        icon = Icons.emergency_rounded;
+        label = 'Emergency — Connect to Nurse';
+        color = AppColors.danger;
+        break;
+      case EmergencyStatus.waiting:
+        icon = Icons.hourglass_top_rounded;
+        label = 'Sent — waiting for nurse… (tap to cancel)';
+        color = AppColors.warning;
+        break;
+      case EmergencyStatus.connected:
+        icon = Icons.call_end_rounded;
+        label = 'Nurse connected — tap to end';
+        color = AppColors.success;
+        break;
+    }
+
+    final bg = status == EmergencyStatus.none
+        ? AppColors.dangerLight
+        : status == EmergencyStatus.waiting
+            ? AppColors.warningLight
+            : AppColors.successLight;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -406,20 +438,30 @@ class _EmergencyButton extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: AppColors.dangerLight,
+            color: bg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.emergency_rounded, color: AppColors.danger, size: 18),
-              SizedBox(width: 8),
-              Text('Emergency — Connect to Nurse',
-                  style: TextStyle(
-                      color: AppColors.danger,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14)),
+              if (status == EmergencyStatus.waiting)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                )
+              else
+                Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14)),
+              ),
             ],
           ),
         ),

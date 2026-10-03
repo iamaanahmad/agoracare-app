@@ -38,14 +38,6 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        title: const Text('Vitals'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: AppColors.border),
-        ),
-      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

@@ -29,6 +29,7 @@ dependencies:
 
   # Audio alerts
   audioplayers: ^6.1.0
+  flutter_tts: ^4.2.2
 
   # Utils
   shared_preferences: ^2.3.2

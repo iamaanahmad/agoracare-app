@@ -53,7 +53,10 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: String.fromEnvironment('AGORACARE_FIREBASE_API_KEY'),
+    apiKey: String.fromEnvironment(
+      'AGORACARE_FIREBASE_API_KEY',
+      defaultValue: 'AIzaSyCQM858Zvwvnc4_PIMBiiGfKxhffH9lYx8',
+    ),
     appId: '1:1003682822297:android:117c4f9c59f5cf1a8fe008',
     messagingSenderId: '1003682822297',
     projectId: 'agoracare-46c5e',

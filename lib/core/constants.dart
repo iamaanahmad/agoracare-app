@@ -1,5 +1,6 @@
 class AppConstants {
-  // Production backend (Vercel)
+  // Backend — live Vercel deployment (production). For local dev, swap to
+  // 'http://localhost:9002' and run `adb reverse tcp:9002 tcp:9002`.
   static const backendUrl = 'https://agoracare.vercel.app';
 
   // Agora
