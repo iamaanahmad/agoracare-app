@@ -10,8 +10,6 @@ A real-time **Hindi/English Voice AI healthcare companion** for rural India. Pat
 
 📱 **Download the APK:** see the [latest Release](https://github.com/iamaanahmad/agoracare-app/releases/latest)
 
-🎥 **Demo video:** *(3–4 min walkthrough: Hindi voice consult → medication reminder → emergency escalation → nurse joins the live audio bridge)*
-
 ## The Problem
 
 - 1 doctor per 1,456 people in rural India (WHO standard: 1 per 1,000)
