@@ -63,8 +63,10 @@ class VoiceSession {
 class TranscriptLine {
   final String text;
   final bool isUser;
+  final String turnKey;
   final DateTime time;
-  TranscriptLine(this.text, {required this.isUser}) : time = DateTime.now();
+  TranscriptLine(this.text, {required this.isUser, this.turnKey = ''})
+      : time = DateTime.now();
 }
 
 // ── Provider ────────────────────────────────────────────────────────────────
@@ -117,11 +119,17 @@ class VoiceNotifier extends StateNotifier<VoiceSession> {
       );
     };
 
-    _agora.onTranscript = (isUser, text) {
-      final lines = [
-        ...state.transcript,
-        TranscriptLine(text, isUser: isUser),
-      ];
+    _agora.onTranscript = (isUser, text, turnKey) {
+      final lines = [...state.transcript];
+      // One bubble per turn: if we already have a bubble for this turnKey,
+      // replace its text with the latest (growing) transcript; otherwise add
+      // a new bubble. This keeps each turn as a single, updating message.
+      final idx = lines.lastIndexWhere((l) => l.turnKey == turnKey);
+      if (idx >= 0) {
+        lines[idx] = TranscriptLine(text, isUser: isUser, turnKey: turnKey);
+      } else {
+        lines.add(TranscriptLine(text, isUser: isUser, turnKey: turnKey));
+      }
       state = state.copyWith(transcript: lines);
     };
 
@@ -269,7 +277,17 @@ class VoiceNotifier extends StateNotifier<VoiceSession> {
       await BackendService.stopAgent(agentId, channelName);
     }
     await _agora.dispose();
-    state = const VoiceSession(statusText: 'Session ended. Tap to talk again.');
+    // Keep the transcript on screen; it is cleared only when a NEW session
+    // starts. Reset session fields but preserve the conversation history.
+    state = state.copyWith(
+      orbState: VoiceOrbState.idle,
+      isMuted: false,
+      agentId: null,
+      channelName: null,
+      statusText: 'Session ended. Tap to talk again.',
+      emergencyStatus: EmergencyStatus.none,
+      clearEscalationTicket: true,
+    );
   }
 
   // ── Mute ───────────────────────────────────────────────────────────────────

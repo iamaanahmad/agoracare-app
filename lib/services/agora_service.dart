@@ -14,7 +14,9 @@ class AgoraService {
   Function(int uid)? onAgentJoined;
   Function(int uid)? onAgentLeft;
   Function(String error)? onError;
-  Function(bool isUser, String text)? onTranscript;
+  // isUser: who spoke · text: full text so far · turnKey: unique id for this
+  // conversation turn (same key = same bubble, updated in place).
+  Function(bool isUser, String text, String turnKey)? onTranscript;
   Function()? onUserStartedSpeaking;
   Function()? onAgentStartedSpeaking;
 
@@ -96,21 +98,71 @@ class AgoraService {
     );
   }
 
+  // Reassembly buffer for Agora Convo AI chunked stream messages.
+  // Format per packet: "<messageId>|<partIndex>|<totalParts>|<base64Payload>".
+  final Map<String, Map<int, String>> _streamParts = {};
+
   void _handleStreamMessage(int uid, Uint8List data) {
     final raw = utf8.decode(data, allowMalformed: true);
-    try {
-      final json = jsonDecode(raw) as Map<String, dynamic>;
-      // Agora Convo AI transcript format varies — try common fields.
-      final text = json['text'] as String? ??
-          json['content'] as String? ??
-          json['data'] as String? ??
-          json['message'] as String?;
-      if (text != null && text.isNotEmpty) {
-        final isUser = uid != AppConstants.agentUid;
-        onTranscript?.call(isUser, text);
+
+    // Try the chunked "id|idx|total|base64" protocol first.
+    final parts = raw.split('|');
+    String? payload;
+    if (parts.length >= 4) {
+      final msgId = parts[0];
+      final idx = int.tryParse(parts[1]) ?? 1;
+      final total = int.tryParse(parts[2]) ?? 1;
+      final chunk = parts.sublist(3).join('|'); // base64 may be chunk only
+
+      final buf = _streamParts.putIfAbsent(msgId, () => {});
+      buf[idx] = chunk;
+      if (buf.length < total) return; // wait for all parts
+
+      final b64 = List.generate(total, (i) => buf[i + 1] ?? '').join();
+      _streamParts.remove(msgId);
+      try {
+        payload = utf8.decode(base64.decode(b64));
+      } catch (_) {
+        payload = null;
       }
+    } else {
+      payload = raw; // maybe already plain JSON
+    }
+
+    if (payload == null) return;
+    _parseTranscript(uid, payload);
+  }
+
+  void _parseTranscript(int uid, String payload) {
+    try {
+      final json = jsonDecode(payload) as Map<String, dynamic>;
+      final object = json['object'] as String? ?? '';
+
+      // Only handle transcription messages (ignore metrics/state/errors).
+      if (!object.contains('transcription')) return;
+
+      final text = (json['text'] ?? json['content'] ?? json['data']) as String?;
+      if (text == null || text.trim().isEmpty) return;
+
+      // Speaker from the message object type:
+      //   assistant.transcription → Aria;  user.transcription → patient.
+      final bool isUser = object.startsWith('user')
+          ? true
+          : object.startsWith('assistant')
+              ? false
+              : uid != AppConstants.agentUid;
+
+      // Agora tags every transcription with a stream/turn id. All messages
+      // sharing the same turn id belong to ONE bubble, which we update in
+      // place with the latest (growing) text — this stops both the
+      // sentence-splitting into multiple bubbles and the partial-ASR repeats.
+      final turnId = (json['turn_id'] ?? json['stream_id'] ?? json['message_id'])
+          ?.toString();
+      final turnKey = '${isUser ? 'u' : 'a'}:${turnId ?? text.hashCode}';
+
+      onTranscript?.call(isUser, text.trim(), turnKey);
     } catch (_) {
-      // Not plain JSON — logged above as RAW for format inspection.
+      // Not a transcript payload — ignore.
     }
   }
 
@@ -154,6 +206,8 @@ class AgoraService {
     if (!_isJoined) return;
     await _engine!.leaveChannel();
     _isJoined = false;
+    // Clear transcript reassembly state so sessions don't bleed into each other.
+    _streamParts.clear();
   }
 
   Future<void> setMuted(bool muted) async {
